@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LOOK Elevator Simulation</title>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#182032; --line:#2a3550; --text:#e6ebf5; --muted:#8f9bb3;
+    --accent:#ffb347; --lit:#ffd166; --up:#5ee0a0; --down:#6ab7ff;
+    --FH:150px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}
+  header{padding:14px 22px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+  header h1{margin:0;font-size:20px;letter-spacing:.3px}
+  header p{margin:0;color:var(--muted);font-size:13px}
+  main{display:grid;grid-template-columns:auto 340px;gap:20px;padding:20px;max-width:1140px;margin:0 auto;align-items:start}
+  @media (max-width:1120px){ main{grid-template-columns:1fr} }
+
+  /* ---------- Building ---------- */
+  .scene{overflow-x:auto;padding-bottom:6px}
+  .roof{width:746px;height:16px;background:#4a587a;border-radius:8px 8px 0 0;margin:0 0 0 0}
+  .building{position:relative;width:746px;height:calc(var(--FH)*4);background:#1b2233;border:3px solid #3a4763;border-top:none;border-bottom:none;overflow:hidden;}
+  .ground{width:746px;height:22px;background:linear-gradient(#3a4763,#232b3d);border-radius:0 0 10px 10px}
+  .floor{position:absolute;left:0;width:100%;height:var(--FH);z-index:1;background:linear-gradient(#1c2436,#182031)}
+  .floor .slab{position:absolute;left:0;right:0;bottom:0;height:6px;background:#3a4763}
+  .floor .label{position:absolute;left:14px;top:6px;font-size:54px;font-weight:800;color:#2a3550;line-height:1}
+  .floor .window{position:absolute;top:28px;width:42px;height:54px;background:linear-gradient(160deg,#2b3d5c,#22314a);border:2px solid #3a4763;border-radius:3px}
+  .floor .window.w1{left:100px}.floor .window.w2{left:160px}
+  .floor .window::after{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;background:#3a4763;transform:translateX(-50%)}
+
+  .hallpanel{position:absolute;left:486px;top:44px;width:28px;padding:4px 3px;background:#0b0f18;border:2px solid #4a587a;border-radius:5px;display:flex;flex-direction:column;gap:4px;z-index:2}
+  .hbtn{width:18px;height:18px;border-radius:50%;border:2px solid #4a587a;background:#233;color:#8f9bb3;font-size:9px;line-height:1;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,box-shadow .15s}
+  .hbtn.up{color:var(--up)} .hbtn.down{color:var(--down)}
+  .hbtn.lit.up{background:var(--up);color:#0b0f18;box-shadow:0 0 8px var(--up)}
+  .hbtn.lit.down{background:var(--down);color:#0b0f18;box-shadow:0 0 8px var(--down)}
+  .hbtn.press{transform:scale(.85)}
+  .hbtn:hover{border-color:#8f9bb3}
+
+  .shaft{position:absolute;left:520px;top:0;width:220px;height:100%;background:#0b0f18;border-left:4px solid #4a587a;border-right:4px solid #4a587a;z-index:1}
+  .shaft::before,.shaft::after{content:"";position:absolute;top:0;bottom:0;width:3px;background:#222c40}
+  .shaft::before{left:6px}.shaft::after{right:6px}
+
+  .lantern{position:absolute;left:592px;top:2px;width:76px;height:18px;display:flex;justify-content:center;gap:16px;font-size:12px;line-height:18px;color:#2a3550;z-index:2}
+  .lantern .up.on{color:var(--up);text-shadow:0 0 8px var(--up)}
+  .lantern .down.on{color:var(--down);text-shadow:0 0 8px var(--down)}
+
+  /* ---------- Car ---------- */
+  #car{position:absolute;left:535px;width:190px;height:122px;background:linear-gradient(#3d4a66,#2c3750);border:2px solid #6e7d9e;border-radius:3px;z-index:2}
+  #car .light{position:absolute;left:16px;right:16px;top:4px;height:4px;background:#fff6d5;border-radius:2px;box-shadow:0 0 10px #fff2c0}
+  #car .disp{position:absolute;left:50%;top:10px;transform:translateX(-50%);background:#000;color:var(--accent);font:700 12px/1 ui-monospace,Menlo,monospace;padding:3px 6px;border-radius:3px;border:1px solid #6e7d9e;min-width:36px;text-align:center;letter-spacing:1px}
+  #car .rail{position:absolute;left:8px;right:26px;top:62px;height:3px;background:#8b97b1;border-radius:2px}
+  .carpanel{position:absolute;right:5px;top:32px;width:18px;padding:3px 2px;background:#111623;border:1px solid #6e7d9e;border-radius:3px;display:flex;flex-direction:column-reverse;gap:3px}
+  .cbtn{width:12px;height:12px;border-radius:50%;border:1px solid #6e7d9e;background:#2a3550;color:#8f9bb3;font-size:7px;line-height:1;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .cbtn.lit{background:var(--lit);color:#111;box-shadow:0 0 6px var(--lit)}
+
+  #doors{position:absolute;left:535px;width:190px;height:122px;overflow:hidden;z-index:4;outline:2px solid #6e7d9e;border-radius:3px;pointer-events:none}
+  .door{position:absolute;top:0;width:95px;height:100%;background:linear-gradient(90deg,#7f8ba5,#aab4ca 60%,#8f9bb3);border:1px solid #5a667f;will-change:transform}
+  .door.l{left:0;border-right:2px solid #3a4763}.door.r{left:95px;border-left:2px solid #3a4763}
+  .door::after{content:"";position:absolute;left:50%;top:38%;width:10px;height:26px;border:2px solid #56617a;border-radius:2px;transform:translateX(-50%)}
+
+  /* ---------- People ---------- */
+  #people{position:absolute;left:0;top:0;width:100%;height:100%;z-index:3;pointer-events:none}
+  .person{position:absolute;left:0;top:0;width:26px;height:58px;will-change:transform}
+  .person .head{width:16px;height:16px;border-radius:50%;background:var(--skin);margin:0 auto}
+  .person .body{width:22px;height:26px;background:var(--c);border-radius:7px 7px 3px 3px;margin:1px auto 0}
+  .person .legs{display:flex;justify-content:center;gap:4px;height:15px}
+  .person .legs i{display:block;width:7px;height:15px;background:#2a2f45;border-radius:0 0 3px 3px;transform-origin:top center}
+  .person.walk .legs i:first-child{animation:stepA .4s infinite ease-in-out}
+  .person.walk .legs i:last-child{animation:stepB .4s infinite ease-in-out}
+  @keyframes stepA{0%,100%{transform:rotate(18deg)}50%{transform:rotate(-18deg)}}
+  @keyframes stepB{0%,100%{transform:rotate(-18deg)}50%{transform:rotate(18deg)}}
+  .person .tag{position:absolute;top:-19px;left:50%;transform:translateX(-50%);background:#fff;color:#111;font-size:11px;font-weight:700;padding:1px 6px;border-radius:9px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.5);line-height:1.3}
+  .person .tag::after{content:"";position:absolute;left:50%;bottom:-4px;border:4px solid transparent;border-top-color:#fff;border-bottom:0;transform:translateX(-50%)}
+  .person.riding .tag{background:var(--lit)}
+
+  /* ---------- Sidebar ---------- */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+  .card h2{margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+  .row{display:flex;align-items:center;gap:8px;margin:8px 0;flex-wrap:wrap}
+  .row label{font-size:13px;color:var(--muted)}
+  button.ctl{background:#243049;color:var(--text);border:1px solid #3a4763;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer}
+  button.ctl:hover{background:#2e3c5a}
+  button.ctl.primary{background:var(--accent);color:#111;border-color:var(--accent);font-weight:700}
+  input[type=range]{flex:1;min-width:90px;accent-color:var(--accent)}
+  select{background:#111623;color:var(--text);border:1px solid #3a4763;border-radius:5px;padding:4px 6px}
+  .stat{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px}
+  .stat b{color:var(--muted);font-weight:500}
+  .big{font-size:40px;font-weight:800;color:var(--accent);line-height:1;font-family:ui-monospace,Menlo,monospace}
+  .bigrow{display:flex;align-items:center;gap:14px;margin-bottom:10px}
+  .arrow{font-size:28px;color:#2a3550}.arrow.on.up{color:var(--up)}.arrow.on.down{color:var(--down)}
+  .sidepanel{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px}
+  .sbtn{width:44px;height:44px;justify-self:center;border-radius:50%;border:2px solid #4a587a;background:#111623;color:var(--muted);font-size:16px;font-weight:700;cursor:pointer;transition:background .15s}
+  .sbtn.lit{background:var(--lit);color:#111;box-shadow:0 0 10px var(--lit);border-color:var(--lit)}
+  .sbtn:hover{border-color:#8f9bb3}
+  .hallgrid{display:grid;grid-template-columns:auto 1fr 1fr;gap:6px 10px;font-size:13px;align-items:center;margin-top:6px}
+  .pill{display:inline-block;padding:2px 8px;border-radius:10px;border:1px solid #3a4763;color:#4a587a;font-size:12px;text-align:center}
+  .pill.on.up{background:var(--up);color:#111;border-color:var(--up)}
+  .pill.on.down{background:var(--down);color:#111;border-color:var(--down)}
+  #log{list-style:none;margin:0;padding:0;font-size:12px;max-height:230px;overflow:auto;font-family:ui-monospace,Menlo,monospace}
+  #log li{padding:3px 0;border-bottom:1px dashed #243049;color:#c9d2e6}
+  #log li span{color:var(--muted);margin-right:6px}
+  .help{font-size:13px;color:#c9d2e6;line-height:1.5;margin:0}
+  .help b{color:var(--accent)}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:8px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:middle}
+</style>
+</head>
+<body>
+<header>
+  <h1>Four-Story Elevator &mdash; LOOK Algorithm</h1>
+  <p>People arrive, press hall call buttons, ride, press their floor button, and leave. Each rider's tag shows the destination floor.</p>
+</header>
+
+<main>
+  <section class="scene">
+    <div class="roof"></div>
+    <div class="building" id="building">
+      <div class="shaft"></div>
+      <div id="car">
+        <div class="light"></div>
+        <div class="disp"><span id="carDispDir">&bull;</span> <span id="carDispFloor">1</span></div>
+        <div class="rail"></div>
+        <div class="carpanel" id="carpanel"></div>
+      </div>
+      <div id="people"></div>
+      <div id="doors"><div class="door l" id="doorL"></div><div class="door r" id="doorR"></div></div>
+    </div>
+    <div class="ground"></div>
+    <div class="legend">
+      <span><i style="background:var(--up)"></i>Up call / lantern</span>
+      <span><i style="background:var(--down)"></i>Down call / lantern</span>
+      <span><i style="background:var(--lit)"></i>Car floor button lit</span>
+      <span>Tip: click a hall button in the building to add a rider on that floor, or a car button to register a call.</span>
+    </div>
+  </section>
+
+  <aside>
+    <div class="card">
+      <h2>Controls</h2>
+      <div class="row">
+        <button class="ctl primary" id="btnRun">Pause</button>
+        <button class="ctl" id="btnReset">Reset</button>
+        <button class="ctl" id="btnSpawn">Add random rider</button>
+      </div>
+      <div class="row">
+        <label>Speed <span id="speedVal">1.0&times;</span></label>
+        <input type="range" id="speed" min="0.25" max="4" step="0.25" value="1">
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="autoSpawn" checked> Auto traffic</label>
+        <label>Rate</label>
+        <input type="range" id="traffic" min="0.3" max="3" step="0.1" value="1">
+      </div>
+      <div class="row">
+        <label>Rider from</label>
+        <select id="selFrom"><option>1</option><option>2</option><option>3</option><option>4</option></select>
+        <label>to</label>
+        <select id="selTo"><option>1</option><option>2</option><option selected>3</option><option>4</option></select>
+        <button class="ctl" id="btnManual">Add</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Elevator status</h2>
+      <div class="bigrow">
+        <div class="big" id="stFloor">1</div>
+        <div><span class="arrow up" id="arrUp">&#9650;</span> <span class="arrow down" id="arrDown">&#9660;</span></div>
+        <div class="stat" style="flex:1">
+          <b>State</b><span id="stState">Idle</span>
+          <b>Doors</b><span id="stDoors">Closed</span>
+          <b>Load</b><span id="stLoad">0 / 5</span>
+        </div>
+      </div>
+      <b style="font-size:12px;color:var(--muted)">CAR FLOOR BUTTONS</b>
+      <div class="sidepanel" id="sidepanel"></div>
+      <b style="font-size:12px;color:var(--muted);display:block;margin-top:12px">HALL CALLS</b>
+      <div class="hallgrid" id="hallgrid"></div>
+    </div>
+
+    <div class="card">
+      <h2>LOOK algorithm</h2>
+      <p class="help">The car keeps travelling in its <b>current direction</b>, stopping at every floor that has a lit car button or a hall call in that direction. When no requests remain ahead, it <b>reverses</b> (or goes idle if nothing is pending). Unlike SCAN it never travels to the end of the shaft unnecessarily, and unlike first-come-first-served it never zig-zags. Riders only board a car that is announced to go their way, and a full car passes hall calls by.</p>
+    </div>
+
+    <div class="card">
+      <h2>Event log</h2>
+      <ul id="log"></ul>
+    </div>
+  </aside>
+</main>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------------- Constants ---------------- */
+const FLOORS = 4, FH = 150;
+const CAR_X = 535, CAR_W = 190, CAR_H = 122, CAR_TOP_OFF = 22, SHAFT_X = 520;
+const FLOOR_SLAB = 6, PERSON_H = 58, WALK = 95;         // px, px, px per second
+const SLOTS = [10, 42, 74, 106, 138], CAPACITY = SLOTS.length;
+const QUEUE_X = 452, QUEUE_GAP = 32, MAX_QUEUE = 10;
+const T_FLOOR = 1.6, T_DOOR = 0.9, T_DWELL = 1.6;      // seconds
+const COLORS = ['#ff6b6b','#ffa94d','#ffd43b','#69db7c','#4dabf7','#9775fa','#f783ac','#63e6be','#a9e34b','#ff8787','#74c0fc'];
+const SKINS = ['#f1c9a5','#d9a679','#a9754f','#8d5524','#ffdbac','#c68642'];
+
+const $ = s => document.querySelector(s);
+const buildingEl = $('#building'), carEl = $('#car'), doorsEl = $('#doors');
+const doorL = $('#doorL'), doorR = $('#doorR'), peopleLayer = $('#people'), logEl = $('#log');
+
+const floorTop = f => (FLOORS - f) * FH;
+const standTop = f => floorTop(f) + FH - FLOOR_SLAB - PERSON_H;
+const carTop = () => (FLOORS - car.pos) * FH + CAR_TOP_OFF;
+const dirWord = d => d > 0 ? 'up' : d < 0 ? 'down' : 'none';
+const rnd = (a, b) => a + Math.random() * (b - a);
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+/* ---------------- State ---------------- */
+let car, hall, people, idSeq, simTime, spawnTimer;
+let running = true, speed = 1, autoSpawn = true, traffic = 1;
+const hallEls = {}, lanternEls = {}, carBtnEls = {}, sideBtnEls = {}, hallPillEls = {};
+
+/* ---------------- Build the DOM ---------------- */
+for (let f = FLOORS; f >= 1; f--) {
+  const fl = document.createElement('div');
+  fl.className = 'floor';
+  fl.style.top = floorTop(f) + 'px';
+  fl.innerHTML =
+    `<div class="label">${f}</div><div class="window w1"></div><div class="window w2"></div>
+     <div class="hallpanel">
+       ${f < FLOORS ? '<button class="hbtn up" data-dir="1" title="Call up">&#9650;</button>' : ''}
+       ${f > 1 ? '<button class="hbtn down" data-dir="-1" title="Call down">&#9660;</button>' : ''}
+     </div>
+     <div class="lantern"><span class="up">&#9650;</span><span class="down">&#9660;</span></div>
+     <div class="slab"></div>`;
+  buildingEl.insertBefore(fl, buildingEl.firstChild);
+  hallEls[f] = {};
+  fl.querySelectorAll('.hbtn').forEach(b => {
+    const d = +b.dataset.dir;
+    hallEls[f][d] = b;
+    b.addEventListener('click', () => spawnPerson(f, randomDest(f, d)));
+  });
+  lanternEls[f] = { up: fl.querySelector('.lantern .up'), down: fl.querySelector('.lantern .down') };
+}
+
+const carpanel = $('#carpanel'), sidepanel = $('#sidepanel'), hallgrid = $('#hallgrid');
+for (let f = 1; f <= FLOORS; f++) {
+  const b = document.createElement('button');
+  b.className = 'cbtn'; b.textContent = f; b.title = 'Car button ' + f;
+  b.addEventListener('click', () => pressCar(f, null));
+  carpanel.appendChild(b); carBtnEls[f] = b;
+
+  const s = document.createElement('button');
+  s.className = 'sbtn'; s.textContent = f; s.title = 'Car button ' + f;
+  s.addEventListener('click', () => pressCar(f, null));
+  sidepanel.appendChild(s); sideBtnEls[f] = s;
+}
+for (let f = FLOORS; f >= 1; f--) {
+  const lab = document.createElement('span'); lab.textContent = 'Floor ' + f;
+  const up = document.createElement('span'); up.className = 'pill up'; up.innerHTML = f < FLOORS ? '&#9650; up' : '&mdash;';
+  const dn = document.createElement('span'); dn.className = 'pill down'; dn.innerHTML = f > 1 ? '&#9660; down' : '&mdash;';
+  hallgrid.append(lab, up, dn);
+  hallPillEls[f] = { 1: up, '-1': dn };
+}
+
+/* ---------------- Reset ---------------- */
+function reset() {
+  car = { pos: 1, dir: 0, state: 'idle', door: 0, timer: 0, announced: 0,
+          carCalls: new Set(), slots: new Array(CAPACITY).fill(null) };
+  hall = {};
+  for (let f = 1; f <= FLOORS; f++) hall[f] = { 1: false, '-1': false };
+  if (people) people.forEach(p => p.el.remove());
+  people = []; idSeq = 0; simTime = 0; spawnTimer = 1.0;
+  logEl.innerHTML = '';
+  log('Simulation started. Car idle at floor 1.');
+}
+
+/* ---------------- Logging ---------------- */
+function log(msg) {
+  const li = document.createElement('li');
+  li.innerHTML = `<span>t=${simTime.toFixed(1)}s</span>${msg}`;
+  logEl.insertBefore(li, logEl.firstChild);
+  while (logEl.children.length > 60) logEl.removeChild(logEl.lastChild);
+}
+function flash(el) {
+  if (!el) return;
+  el.classList.add('press');
+  setTimeout(() => el.classList.remove('press'), 250);
+}
+
+/* ---------------- Request helpers (LOOK) ---------------- */
+const hasFree = () => car.slots.some(s => s === null);
+function requestsBeyond(f, d) {
+  for (let g = f + d; g >= 1 && g <= FLOORS; g += d)
+    if (car.carCalls.has(g) || hall[g][1] || hall[g][-1]) return true;
+  return false;
+}
+// Stop here while travelling in direction d?
+function shouldStop(f, d) {
+  if (car.carCalls.has(f)) return true;
+  if (!hasFree()) return false;                              // full car passes hall calls by
+  if (hall[f][d]) return true;                               // hall call in our direction
+  return hall[f][-d] && !requestsBeyond(f, d);               // last request ahead: reverse here
+}
+// Which direction will the car announce (lantern) after stopping at f?
+function computeAnnounced(f, d) {
+  if (d !== 0) {
+    if (requestsBeyond(f, d)) return d;
+    if (hall[f][d]) return d;
+    if (hall[f][-d] || requestsBeyond(f, -d)) return -d;
+    return 0;
+  }
+  const w = people.filter(p => p.state === 'waiting' && p.floor === f).sort((a, b) => a.id - b.id);
+  if (w.length) return w[0].wantDir;
+  if (hall[f][1]) return 1;
+  if (hall[f][-1]) return -1;
+  if (requestsBeyond(f, 1)) return 1;
+  if (requestsBeyond(f, -1)) return -1;
+  return 0;
+}
+
+/* ---------------- Elevator state machine ---------------- */
+function openDoors() {
+  car.state = 'opening';
+  log(`Car at floor ${car.pos}: doors opening`);
+}
+
+function arrive() {
+  const f = car.pos;
+  car.carCalls.delete(f);
+  let out = 0;
+  people.forEach(p => {
+    if (p.state === 'riding' && p.dest === f) {
+      p.state = 'exiting'; car.slots[p.slot] = null; p.slot = -1;
+      p.floor = f; p.tx = -60; p.delay = out * 0.3; out++;
+      p.el.classList.remove('riding');
+    }
+  });
+  if (out) log(`${out} rider${out > 1 ? 's' : ''} leaving at floor ${f}`);
+  car.announced = computeAnnounced(f, car.dir);
+  if (car.announced !== 0) hall[f][car.announced] = false;
+  boardWaiters();
+}
+
+function boardWaiters() {
+  const f = car.pos;
+  if (car.announced === 0) car.announced = computeAnnounced(f, 0);
+  if (car.announced === 0) return;
+  const exiting = people.some(p => p.state === 'exiting' && p.x > SHAFT_X - 30);
+  const waiters = people.filter(p => p.state === 'waiting' && p.floor === f && p.wantDir === car.announced)
+                        .sort((a, b) => a.id - b.id);
+  let n = 0;
+  for (const p of waiters) {
+    const slot = car.slots.findIndex(s => s === null);
+    if (slot < 0) break;
+    car.slots[slot] = p; p.slot = slot; p.state = 'boarding';
+    p.tx = CAR_X + SLOTS[slot]; p.delay = n * 0.35 + (exiting ? 0.6 : 0); n++;
+  }
+  if (n) {
+    hall[f][car.announced] = false;
+    log(`${n} rider${n > 1 ? 's' : ''} boarding at floor ${f} (car going ${dirWord(car.announced)})`);
+    car.timer = Math.max(car.timer, T_DWELL);
+  }
+}
+
+function relightHallCalls() {
+  people.forEach(p => { if (p.state === 'waiting') hall[p.floor][p.wantDir] = true; });
+}
+
+function updateCar(dt) {
+  switch (car.state) {
+    case 'idle': {
+      const f = car.pos, free = hasFree();
+      let d = car.dir;
+      if (d !== 0 && !(requestsBeyond(f, d) || (free && hall[f][d]))) d = 0;
+      if (d === 0 && free && (hall[f][1] || hall[f][-1])) { car.dir = 0; openDoors(); break; }
+      if (d === 0) { if (requestsBeyond(f, 1)) d = 1; else if (requestsBeyond(f, -1)) d = -1; }
+      if (car.carCalls.has(f) || (free && d !== 0 && hall[f][d])) { car.dir = d; openDoors(); break; }
+      if (d !== 0) {
+        car.dir = d; car.state = 'moving';
+        log(`Car leaving floor ${f}, heading ${dirWord(d)}`);
+      } else car.dir = 0;
+      break;
+    }
+    case 'moving': {
+      const prev = car.pos;
+      const next = car.dir > 0 ? Math.floor(prev + 1e-6) + 1 : Math.ceil(prev - 1e-6) - 1;
+      car.pos = prev + car.dir * dt / T_FLOOR;
+      if ((car.dir > 0 && car.pos >= next) || (car.dir < 0 && car.pos <= next)) {
+        car.pos = next;
+        if (shouldStop(next, car.dir)) openDoors();
+        else if (!requestsBeyond(next, car.dir)) { car.state = 'idle'; car.dir = 0; }
+        else log(`Car passing floor ${next}`);
+      }
+      break;
+    }
+    case 'opening':
+      car.door = Math.min(1, car.door + dt / T_DOOR);
+      if (car.door >= 1) { car.state = 'open'; car.timer = T_DWELL; arrive(); }
+      break;
+    case 'open': {
+      const f = car.pos;
+      boardWaiters();
+      const busy = people.some(p =>
+        (p.state === 'boarding' && p.floor === f) ||
+        (p.state === 'exiting' && p.x > SHAFT_X - 30));
+      if (busy) car.timer = Math.max(car.timer, 0.8); else car.timer -= dt;
+      if (car.timer <= 0) { car.state = 'closing'; log(`Floor ${f}: doors closing`); }
+      break;
+    }
+    case 'closing': {
+      const f = car.pos;
+      if (hasFree() && car.announced !== 0 &&
+          people.some(p => p.state === 'waiting' && p.floor === f && p.wantDir === car.announced)) {
+        car.state = 'opening'; log(`Floor ${f}: doors reopening for a waiting rider`); break;
+      }
+      car.door -= dt / T_DOOR;
+      if (car.door <= 0) {
+        car.door = 0; car.state = 'idle';
+        car.dir = car.announced; car.announced = 0;
+        relightHallCalls();
+      }
+      break;
+    }
+  }
+}
+
+/* ---------------- People ---------------- */
+function randomDest(f, d) {
+  const opts = [];
+  for (let g = 1; g <= FLOORS; g++) if (g !== f && Math.sign(g - f) === d) opts.push(g);
+  return pick(opts);
+}
+function spawnRandom() {
+  const from = 1 + Math.floor(Math.random() * FLOORS);
+  let to; do { to = 1 + Math.floor(Math.random() * FLOORS); } while (to === from);
+  spawnPerson(from, to);
+}
+function spawnPerson(from, to) {
+  if (to === from) return;
+  const queued = people.filter(p => p.floor === from && (p.state === 'waiting' || p.state === 'arriving')).length;
+  if (queued >= MAX_QUEUE) { log(`Floor ${from} lobby is full; rider turned away`); return; }
+  const el = document.createElement('div');
+  el.className = 'person';
+  el.style.setProperty('--c', pick(COLORS));
+  el.style.setProperty('--skin', pick(SKINS));
+  el.innerHTML = `<div class="tag">&rarr; ${to}</div><div class="head"></div><div class="body"></div><div class="legs"><i></i><i></i></div>`;
+  peopleLayer.appendChild(el);
+  const p = { id: ++idSeq, floor: from, dest: to, wantDir: to > from ? 1 : -1,
+              state: 'arriving', x: -40, tx: 0, delay: 0, slot: -1, el };
+  people.push(p);
+  log(`New rider at floor ${from} wants floor ${to}`);
+}
+function pressHall(p) {
+  const f = p.floor, d = p.wantDir;
+  flash(hallEls[f][d]);
+  if (!hall[f][d]) {
+    hall[f][d] = true;
+    log(`Floor ${f}: ${d > 0 ? '&#9650; up' : '&#9660; down'} call button pressed`);
+  }
+}
+function pressCar(dest, p) {
+  flash(carBtnEls[dest]); flash(sideBtnEls[dest]);
+  if (!car.carCalls.has(dest)) {
+    car.carCalls.add(dest);
+    log(p ? `Rider pressed car button ${dest}` : `Car button ${dest} pressed`);
+  }
+}
+function queueX(p) {
+  const q = people.filter(o => o.floor === p.floor && (o.state === 'waiting' || o.state === 'arriving'))
+                  .sort((a, b) => a.id - b.id);
+  return QUEUE_X - q.indexOf(p) * QUEUE_GAP;
+}
+function updatePeople(dt) {
+  for (let i = people.length - 1; i >= 0; i--) {
+    const p = people[i];
+    if (p.delay > 0) { p.delay -= dt; p.moving = false; continue; }
+    if (p.state === 'riding') { p.x = CAR_X + SLOTS[p.slot]; p.moving = false; continue; }
+    if (p.state === 'arriving' || p.state === 'waiting') p.tx = queueX(p);
+    const dx = p.tx - p.x, step = WALK * dt;
+    if (Math.abs(dx) <= step) {
+      p.x = p.tx; p.moving = false;
+      if (p.state === 'arriving') { p.state = 'waiting'; pressHall(p); }
+      else if (p.state === 'boarding') { p.state = 'riding'; p.el.classList.add('riding'); pressCar(p.dest, p); }
+      else if (p.state === 'exiting') { p.el.remove(); people.splice(i, 1); }
+    } else { p.x += Math.sign(dx) * step; p.moving = true; }
+  }
+}
+
+/* ---------------- Simulation step ---------------- */
+function update(dt) {
+  simTime += dt;
+  if (autoSpawn) {
+    spawnTimer -= dt;
+    if (spawnTimer <= 0) { spawnRandom(); spawnTimer = rnd(2.5, 6.5) / traffic; }
+  }
+  updateCar(dt);
+  updatePeople(dt);
+}
+
+/* ---------------- Rendering ---------------- */
+const stFloor = $('#stFloor'), stState = $('#stState'), stDoors = $('#stDoors'), stLoad = $('#stLoad');
+const arrUp = $('#arrUp'), arrDown = $('#arrDown'), carDispDir = $('#carDispDir'), carDispFloor = $('#carDispFloor');
+const STATE_NAMES = { idle: 'Idle', moving: 'Moving', opening: 'Doors opening', open: 'Doors open', closing: 'Doors closing' };
+
+function render() {
+  const top = carTop();
+  carEl.style.top = top + 'px'; doorsEl.style.top = top + 'px';
+  const off = car.door * 95;
+  doorL.style.transform = `translateX(${-off}px)`;
+  doorR.style.transform = `translateX(${off}px)`;
+
+  const shownDir = car.state === 'moving' ? car.dir : (car.state === 'idle' ? 0 : car.announced);
+  const nearest = Math.round(car.pos);
+  carDispFloor.textContent = nearest;
+  carDispDir.innerHTML = shownDir > 0 ? '&#9650;' : shownDir < 0 ? '&#9660;' : '&bull;';
+  stFloor.textContent = nearest;
+  arrUp.classList.toggle('on', shownDir > 0); arrDown.classList.toggle('on', shownDir < 0);
+  stState.textContent = car.state === 'moving' ? `Moving ${dirWord(car.dir)}` : STATE_NAMES[car.state];
+  stDoors.textContent = car.door <= 0 ? 'Closed' : car.door >= 1 ? 'Open' : `${Math.round(car.door * 100)}%`;
+  const riders = car.slots.filter(s => s).length;
+  stLoad.textContent = `${riders} / ${CAPACITY}${riders === CAPACITY ? ' (full)' : ''}`;
+
+  for (let f = 1; f <= FLOORS; f++) {
+    for (const d of [1, -1]) {
+      if (hallEls[f][d]) hallEls[f][d].classList.toggle('lit', hall[f][d]);
+      hallPillEls[f][d].classList.toggle('on', hall[f][d]);
+    }
+    const here = car.pos === f && car.state !== 'idle' && car.state !== 'moving';
+    lanternEls[f].up.classList.toggle('on', here && car.announced > 0);
+    lanternEls[f].down.classList.toggle('on', here && car.announced < 0);
+    const lit = car.carCalls.has(f);
+    carBtnEls[f].classList.toggle('lit', lit); sideBtnEls[f].classList.toggle('lit', lit);
+  }
+
+  for (const p of people) {
+    const y = p.state === 'riding' ? top + CAR_H - PERSON_H : standTop(p.floor);
+    p.el.style.transform = `translate(${p.x}px, ${y}px)`;
+    p.el.classList.toggle('walk', !!p.moving);
+  }
+}
+
+/* ---------------- Main loop ---------------- */
+let last = performance.now();
+function frame(now) {
+  let dt = Math.min((now - last) / 1000, 0.1);
+  last = now;
+  if (running) {
+    dt *= speed;
+    const steps = Math.max(1, Math.ceil(dt / 0.04)), h = dt / steps;
+    for (let i = 0; i < steps; i++) update(h);
+  }
+  render();
+  requestAnimationFrame(frame);
+}
+
+/* ---------------- Controls ---------------- */
+$('#btnRun').addEventListener('click', e => {
+  running = !running; e.target.textContent = running ? 'Pause' : 'Run';
+});
+$('#btnReset').addEventListener('click', reset);
+$('#btnSpawn').addEventListener('click', spawnRandom);
+$('#btnManual').addEventListener('click', () => {
+  const from = +$('#selFrom').value, to = +$('#selTo').value;
+  if (from === to) { log('Origin and destination must differ'); return; }
+  spawnPerson(from, to);
+});
+$('#speed').addEventListener('input', e => {
+  speed = +e.target.value; $('#speedVal').innerHTML = speed.toFixed(2).replace(/\.?0+$/, '') + '&times;';
+});
+$('#autoSpawn').addEventListener('change', e => { autoSpawn = e.target.checked; });
+$('#traffic').addEventListener('input', e => { traffic = +e.target.value; });
+
+reset();
+spawnPerson(1, 3);
+spawnPerson(3, 1);
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
